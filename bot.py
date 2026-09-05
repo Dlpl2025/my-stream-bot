@@ -1,8 +1,16 @@
 import os
 import asyncio
+
+# Python 3.10+ event loop fix
+try:
+    loop = asyncio.get_event_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
 from aiohttp import web
-from pyrogram import Client, filters
-from pyrogram.types import Message
+from hydrogram import Client, filters
+from hydrogram.types import Message
 
 # কনফিগারেশন ভ্যারিয়েবল
 API_ID = int(os.environ.get("API_ID", "0"))
@@ -70,7 +78,7 @@ async def stream_route(request):
             from_bytes = int(parts[0]) if parts[0] else 0
             until_bytes = int(parts[1]) if len(parts) > 1 and parts[1] else file_size - 1
 
-        chunk_size = 1024 * 1024  # 1MB chunks
+        chunk_size = 1024 * 1024
         length = until_bytes - from_bytes + 1
 
         headers = {
@@ -86,7 +94,7 @@ async def stream_route(request):
         )
         await response.prepare(request)
 
-        async for chunk in bot.stream_media(msg, offset=from_bytes // (1024 * 1024), limit=length):
+        async for chunk in bot.stream_media(msg, offset=from_bytes // chunk_size, limit=length):
             await response.write(chunk)
 
         await response.write_eof()
@@ -97,7 +105,7 @@ async def stream_route(request):
 @bot.on_message(filters.command("start"))
 async def start_handler(client, message: Message):
     await message.reply_text(
-        "👋 স্বাগতম! আমাকে যেকোনো ভিডিও বা ফাইল পাঠান, আমি আপনাকে সরাসরি ওয়েবসাইট এম্বেড ও স্ট্রিমিং লিংক তৈরি করে দেব।"
+        "👋 স্বাগতম! আমাকে যেকোনো ভিডিও ফাইল পাঠান, আমি সরাসরি ওয়েব প্লেয়ার ও এম্বেড লিংক তৈরি করে দেব।"
     )
 
 @bot.on_message(filters.video | filters.document | filters.audio)
@@ -110,7 +118,7 @@ async def media_handler(client, message: Message):
         watch_link = f"{FQDN}/watch/{msg_id}"
         stream_link = f"{FQDN}/stream/{msg_id}"
 
-        embed_code = f'&lt;iframe src="{watch_link}" width="100%" height="450" frameborder="0" allowfullscreen&gt;&lt;/iframe&gt;'
+        embed_code = f'<iframe src="{watch_link}" width="100%" height="450" frameborder="0" allowfullscreen></iframe>'
 
         text = (
             f"✅ **আপনার লিংক প্রস্তুত:**\n\n"
@@ -134,4 +142,4 @@ async def start_services():
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    asyncio.run(start_services())
+    loop.run_until_complete(start_services())
